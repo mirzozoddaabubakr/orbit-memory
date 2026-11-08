@@ -1,0 +1,16 @@
+const paths={
+universe:'<ellipse cx="12" cy="12" rx="11" ry="4.5" transform="rotate(-32 12 12)"/><path d="M5.6 14.8a7 7 0 1 1 12.8-5.6M18.6 14.5a7 7 0 0 1-11.8 3"/>',
+library:'<rect x="3" y="4" width="4" height="16" rx="1"/><rect x="9" y="4" width="4" height="16" rx="1"/><path d="m15 5 3-1 4 15-3 1z"/>',
+star:'<path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/>',
+link:'<path d="m10 13 4-4m-7 4-2 2a3.5 3.5 0 0 0 5 5l4-4a3.5 3.5 0 0 0 0-5m3 0 2-2a3.5 3.5 0 0 0-5-5l-4 4a3.5 3.5 0 0 0 0 5"/>',
+plus:'<path d="M12 5v14M5 12h14"/>',minus:'<path d="M5 12h14"/>',search:'<circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/>',
+expand:'<path d="M4 9V4h5m6 0h5v5M4 15v5h5m6 0h5v-5"/>',reset:'<path d="M4 11a8 8 0 1 1 2 7M4 4v7h7"/>',
+arrow:'<path d="M4 12h15m-6-6 6 6-6 6"/>',diagonal:'<path d="M6 17 18 5M7 5h11v11"/>',close:'<path d="m6 6 12 12m0-12L6 18"/>',
+menu:'<path d="M3 6h18M3 12h18M3 18h18"/>',mouse:'<rect x="6" y="2" width="12" height="20" rx="6"/><path d="M12 5v4"/>',
+clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',copy:'<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h4"/>',
+file:'<path d="M5 3h9l5 5v13H5zM14 3v6h5M8 13h8m-8 4h6"/>',trash:'<path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/>',
+chevron:'<path d="m9 5 7 7-7 7"/>',filter:'<path d="M4 7h16M7 12h10m-7 5h4"/>',check:'<path d="m4 12 5 5L20 6"/>',spark:'<path d="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5z"/>',grid:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',down:'<path d="m6 9 6 6 6-6"/>',hand:'<path d="M8 12V5a1.5 1.5 0 0 1 3 0v6-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v6c0 4-2 7-6 7h-1c-2 0-4-1-6-4l-3-5a1.5 1.5 0 0 1 2-2z"/>'
+};
+export const icon=(name,size=17)=>'<svg aria-hidden="true" viewBox="0 0 24 24" width="'+size+'" height="'+size+'" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">'+(paths[name]||'')+'</svg>';
+export const colors={Claude:'#ed9d79',ChatGPT:'#7fc8ac',Gemini:'#94affb',Qwen:'#b39aef'};
+export function providerMark(p){const c=colors[p]||'#b6bcc8';const signs={Claude:'<g stroke="currentColor" stroke-width="2.3">'+Array.from({length:12},(_,i)=>'<path d="M12 2v6.5" transform="rotate('+i*30+' 12 12)"/>').join('')+'</g>',Gemini:'<path fill="currentColor" d="M12 1c1.2 7 4.1 9.8 11 11-6.9 1.2-9.8 4-11 11C10.8 16 7.8 13.2 1 12c6.8-1.2 9.8-4 11-11Z"/>',ChatGPT:'<g fill="none" stroke="currentColor" stroke-width="1.5">'+Array.from({length:6},(_,i)=>'<path d="M12 5c4-5 11 2 6 6l-5 3-4-2V8z" transform="rotate('+i*60+' 12 12)"/>').join('')+'</g>',Qwen:'<g fill="none" stroke="currentColor" stroke-width="1.6">'+Array.from({length:3},(_,i)=>'<path d="m12 3 6.8 10.5-8 .1 3-4.7-6.3-.4z" transform="rotate('+i*120+' 12 12)"/>').join('')+'</g>'};return '<span class="pmark" style="color:'+c+'"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">'+(signs[p]||'<circle cx="12" cy="12" r="6" fill="currentColor"/>')+'</svg></span>';}

@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.sqlite3*
+.orbit-mcp/
+orbit-auth.json
+agent-connections/
+plugins/
+.agents/
+*.mcpb
+*.key
+.env
+.env.*
+!.env.example

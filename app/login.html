@@ -1,0 +1,10 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101114"><title>Account · Orbit</title><link rel="icon" href="/orbit.svg"><link rel="stylesheet" href="/style.css"></head>
+<body class="auth-page"><main class="auth-shell">
+<div class="auth-art first-memory" aria-hidden="true"><canvas></canvas></div>
+<a class="auth-brand brand" href="/"><img src="/orbit.svg" alt="" width="36" height="36">Orbit<span class="brand-period">.</span></a>
+<section class="auth-card"><h1 id="authHeading">Sign in</h1><p class="auth-caption">Sign in to your Orbit account.</p>
+<form id="accountForm"><label for="email">Email</label><input id="email" type="email" autocomplete="username" required maxlength="254">
+<label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required maxlength="1024">
+<p role="alert" id="authError"></p><button class="primary" id="authSubmit" type="submit">Sign in</button></form>
+<div class="auth-switch"><span id="authPrompt">New to Orbit?</span> <button type="button" class="inline" id="authSwitch">Create an account</button></div>
+</section></main><script type="module" src="/login.js"></script></body></html>
