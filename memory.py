@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 import sqlite3
+from redaction import mask, safe_object
 from contextlib import contextmanager, closing
 from pathlib import Path
 
@@ -59,6 +60,16 @@ class MemoryStore:
               CREATE TABLE IF NOT EXISTS agent_turns (id TEXT, turn_id TEXT, digest TEXT,
                 PRIMARY KEY(id,turn_id));
             """)
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("CREATE TABLE IF NOT EXISTS privacy(id TEXT PRIMARY KEY, private INTEGER DEFAULT 0, original TEXT, reviewed INTEGER DEFAULT 0)")
+            if not db.execute("SELECT 1 FROM settings WHERE name='masked_v1'").fetchone():
+                for row in db.execute("SELECT * FROM memories").fetchall():
+                    fields=[mask(row[k]) for k in ("transcript","title","provider","url")]
+                    brief=json.dumps(safe_object(json.loads(row["summary"])))
+                    db.execute("UPDATE memories SET transcript=?,title=?,provider=?,url=?,summary=? WHERE id=?",(*fields,brief,row["id"]))
+                for row in db.execute("SELECT rowid,transcript FROM snapshots").fetchall():
+                    db.execute("UPDATE snapshots SET transcript=? WHERE rowid=?",(mask(row[1]),row[0]))
+                db.execute("INSERT INTO settings VALUES ('masked_v1','1')")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('pair',?)", (secrets.token_urlsafe(32),))
 
     @contextmanager
@@ -74,7 +85,7 @@ class MemoryStore:
 
     def list(self):
         with self.connect() as db:
-            rows = db.execute("SELECT * FROM memories ORDER BY updated DESC").fetchall()
+            rows = db.execute("SELECT m.*,coalesce(p.private,0) AS private,p.original IS NOT NULL AS kept,coalesce(p.reviewed,0) AS reviewed FROM memories m LEFT JOIN privacy p USING(id) ORDER BY updated DESC").fetchall()
         return [{**dict(r), "summary": json.loads(r["summary"]), "starred": bool(r["starred"])} for r in rows]
 
     def save(self, data, captured=False, *, conversation_id=None, turn_id=None):
@@ -100,6 +111,10 @@ class MemoryStore:
                 raise ValueError("Supply a stable conversation ID of 1 to 512 characters.")
             identity = json.dumps(["orbit-agent", provider.casefold(), conversation_id.strip()])
             mid = hashlib.sha256(identity.encode()).hexdigest()[:32]
+        transcript = mask(transcript)
+        title = mask(field("title"))[:160] or compact(transcript.splitlines()[0],80)
+        provider = mask(field("provider"))[:100] or "Other"
+        url = mask(url)
         stamp = now()
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -126,6 +141,7 @@ class MemoryStore:
                 if old[0] not in transcript:
                     db.execute("INSERT OR IGNORE INTO snapshots VALUES (?,?,?)",
                                (mid, hashlib.sha256(old[0].encode()).hexdigest(), old[0]))
+            db.execute("UPDATE privacy SET original=NULL,reviewed=0 WHERE id=?", (mid,))
             db.execute("""INSERT INTO memories(id,title,provider,transcript,summary,url,created,updated)
                    VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,
                    transcript=excluded.transcript,summary=excluded.summary,updated=excluded.updated""",
@@ -137,7 +153,7 @@ class MemoryStore:
             db.create_function("fold", 1, lambda value: value.casefold() if value else "")
             return [dict(row) for row in db.execute("""
                 SELECT id,title,provider,updated,json_extract(summary,'$.overview') AS overview
-                FROM memories WHERE (?='' OR fold(provider)=?) AND
+                FROM memories WHERE id NOT IN (SELECT id FROM privacy WHERE private=1) AND (?='' OR fold(provider)=?) AND
                 (instr(fold(title),?) OR instr(fold(transcript),?) OR instr(fold(provider),?))
                 ORDER BY updated DESC,id LIMIT ? OFFSET ?
             """, (provider,provider.casefold(),*[query.casefold()]*3,limit,offset))]
@@ -145,7 +161,7 @@ class MemoryStore:
     def read_page(self, mid, version, offset, limit):
         with self.connect() as db:
             db.execute("BEGIN")
-            row = db.execute("SELECT title,provider,summary,url,updated FROM memories WHERE id=?", (mid,)).fetchone()
+            row = db.execute("SELECT title,provider,summary,url,updated FROM memories WHERE id=? AND id NOT IN (SELECT id FROM privacy WHERE private=1)", (mid,)).fetchone()
             if not row:
                 raise ValueError("Memory not found.")
             count = db.execute("SELECT count(*) FROM snapshots WHERE id=?", (mid,)).fetchone()[0]
@@ -173,7 +189,9 @@ class MemoryStore:
             row = db.execute("SELECT transcript FROM memories WHERE id=?", (mid,)).fetchone()
         if not row:
             raise ValueError("Memory not found.")
-        brief = synthesize(model, row[0])
+        if self.is_private(mid):
+            raise ValueError("Private memory cannot be sent to a model.")
+        brief = safe_object(synthesize(model, mask(row[0])))
         with self.connect() as db:
             updated = db.execute("UPDATE memories SET summary=? WHERE id=? AND transcript=?",
                                  (json.dumps(brief), mid, row[0]))
@@ -181,9 +199,46 @@ class MemoryStore:
                 raise ValueError("The conversation changed. Generate its brief again.")
         return brief
 
+    def is_private(self, mid):
+        with self.connect() as db:
+            return bool(db.execute("SELECT 1 FROM privacy WHERE id=? AND private=1",(mid,)).fetchone())
+
+    def review(self, mid, action, original=None):
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row=db.execute("SELECT transcript FROM memories WHERE id=?",(mid,)).fetchone()
+            if not row:
+                raise ValueError("Memory not found.")
+            db.execute("INSERT OR IGNORE INTO privacy(id) VALUES (?)",(mid,))
+            if action=="keep":
+                if not isinstance(original,str) or not original or mask(original.strip())!=row[0]:
+                    raise ValueError("Paste the matching original conversation to keep a local copy.")
+                db.execute("UPDATE privacy SET original=?,reviewed=1 WHERE id=?",(original,mid))
+            elif action in ("private","shareable"):
+                db.execute("UPDATE privacy SET private=?,original=CASE WHEN ? THEN NULL ELSE original END WHERE id=?",(int(action=="private"),int(action=="private"),mid))
+            elif action=="redact":
+                db.execute("UPDATE privacy SET original=NULL,reviewed=1 WHERE id=?",(mid,))
+            else:
+                raise ValueError("Unknown privacy action.")
+
+    def original(self, mid):
+        with self.connect() as db:
+            row=db.execute("SELECT original FROM privacy WHERE id=?",(mid,)).fetchone()
+            return row[0] if row else None
+
+    def export(self, mid):
+        with self.connect() as db:
+            db.execute("BEGIN")
+            row=db.execute("SELECT * FROM memories WHERE id=? AND id NOT IN (SELECT id FROM privacy WHERE private=1)",(mid,)).fetchone()
+            if not row:
+                raise ValueError("This memory is unavailable for handoff.")
+            versions=[r[0] for r in db.execute("SELECT transcript FROM snapshots WHERE id=? ORDER BY rowid",(mid,))]
+            return safe_object({"memory":{**dict(row),"summary":json.loads(row["summary"])},"history":versions})
+
     def change(self, mid, action):
         with self.connect() as db:
             if action == "delete":
+                db.execute("DELETE FROM privacy WHERE id=?",(mid,))
                 db.execute("DELETE FROM agent_turns WHERE id=?", (mid,))
                 db.execute("DELETE FROM snapshots WHERE id=?", (mid,))
                 cursor = db.execute("DELETE FROM memories WHERE id=?", (mid,))

@@ -141,6 +141,13 @@ class OrbitHandler(BaseHTTPRequestHandler):
                 self.store=self.server.accounts.store(account["id"])
             if self.path in ("/api/memories", "/api/capture", "/api/selection"):
                 return self.reply(200, {"id": self.store.save(data, capture)})
+            if self.path=="/api/review":
+                self.store.review(data.get("id"),data.get("action"),data.get("original"))
+                return self.reply(200,{"ok":True})
+            if self.path=="/api/original":
+                return self.reply(200,{"text":self.store.original(data.get("id"))})
+            if self.path=="/api/handoff":
+                return self.reply(200,self.store.export(data.get("id")))
             if self.path == "/api/pair":
                 if self.server.accounts.paired_owner(str(data.get("key", "")),"extension"):
                     return self.reply(200, {"ok": True})

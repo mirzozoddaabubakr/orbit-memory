@@ -114,11 +114,33 @@ async function open(id){
 function summaryView(m){
  const s=m.summary;return '<section class="brief"><h4>Overview</h4><p>'+esc(s.overview)+'</p>'+[['highlights','Key details'],['decisions','Decisions and progress'],['next','Open questions and next steps']].filter(([k])=>s[k]?.length).map(([k,l])=>'<h4>'+l+'</h4><ul>'+s[k].map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>').join('')+'</section>';
 }
-function handoff(m){const s=m.summary;return ['# '+m.title,'Source: '+m.provider+(m.url?'\n'+m.url:''),'## Overview\n'+s.overview,...[['highlights','Key details'],['decisions','Decisions and progress'],['next','Open questions and next steps']].filter(([k])=>s[k]?.length).map(([k,l])=>'## '+l+'\n'+s[k].map(x=>'- '+x).join('\n')),'## Full conversation\n'+m.transcript,...history.map((t,i)=>'## Earlier captured version '+(i+1)+'\n'+t)].join('\n\n');}
+function handoff(m,versions){const s=m.summary;return ['# '+m.title,'Source: '+m.provider+(m.url?'\n'+m.url:''),'## Overview\n'+s.overview,...[['highlights','Key details'],['decisions','Decisions and progress'],['next','Open questions and next steps']].filter(([k])=>s[k]?.length).map(([k,l])=>'## '+l+'\n'+s[k].map(x=>'- '+x).join('\n')),'## Full conversation\n'+m.transcript,...versions.map((t,i)=>'## Earlier captured version '+(i+1)+'\n'+t)].join('\n\n');}
 function detail(){
  const m=selected;if(!m)return;
- modal(closeBtn()+'<div class="detail-meta provider" style="--tint:'+tint(m.provider)+'">'+providerMark(m.provider)+esc(m.provider)+'</div><h2>'+esc(m.title)+'</h2><p class="detail-date">'+day(m)+' · '+m.transcript.trim().split(/\s+/).length+' words</p><div class="tabs">'+[['summary','Summary'],['transcript','Conversation'],['handoff','Handoff']].map(([k,l])=>'<button class="'+(tab===k?'active':'')+'" data-tab="'+k+'">'+l+'</button>').join('')+'</div><div class="reader">'+(tab==='summary'?summaryView(m):tab==='handoff'?'<pre>'+esc(handoff(m))+'</pre>':'<pre>'+esc(m.transcript)+'</pre>'+history.map((t,i)=>'<details><summary>Earlier captured version '+(i+1)+'</summary><pre>'+esc(t)+'</pre></details>').join(''))+'</div><footer class="dialog-actions"><button class="primary" id="copy">'+icon('copy',15)+'Copy handoff</button><button class="plain" id="download">Download</button>'+'<button class="icon delete" id="delete" aria-label="Delete memory">'+icon('trash')+'</button>'+'</footer>');
- if(tab==='summary'){
+ if(m.private && tab==='handoff')tab='summary';
+ modal(closeBtn()+'<div class="detail-meta provider" style="--tint:'+tint(m.provider)+'">'+providerMark(m.provider)+esc(m.provider)+'</div><h2>'+esc(m.title)+'</h2><p class="detail-date">'+day(m)+' · '+m.transcript.trim().split(/\s+/).length+' words</p><div class="tabs">'+[['summary','Summary'],['transcript','Conversation'],['handoff','Handoff']].filter(([key])=>!m.private||key!=='handoff').map(([k,l])=>'<button class="'+(tab===k?'active':'')+'" data-tab="'+k+'">'+l+'</button>').join('')+'</div><div class="reader">'+(tab==='summary'?summaryView(m):tab==='handoff'?'<pre id="handoffPreview"></pre>':'<pre>'+esc(m.transcript)+'</pre>'+history.map((t,i)=>'<details><summary>Earlier captured version '+(i+1)+'</summary><pre>'+esc(t)+'</pre></details>').join(''))+'</div><footer class="dialog-actions"><button class="primary" id="copy">'+icon('copy',15)+'Copy handoff</button><button class="plain" id="download">Download</button>'+'<button class="icon delete" id="delete" aria-label="Delete memory">'+icon('trash')+'</button>'+'</footer>');
+ const notice=document.createElement('section');
+ const masks=[...new Set(JSON.stringify([m,history]).match(/<redacted:[^>]+>/g)||[])];
+ const warning=masks.length?'<strong>Secrets found</strong><p>'+ (m.kept?'Original kept locally. ':m.reviewed?'Redacted. ':'')+masks.map(esc).join(' · ')+'</p><button class="plain" data-review="redact">Redact</button><button class="plain" data-review="keep">Keep anyway</button>':'';
+ notice.innerHTML=warning+'<button class="plain" data-review="'+(m.private?'shareable':'private')+'">'+(m.private?'Private · Allow handoffs':'Mark chat as private')+'</button>'+(m.kept?'<button class="plain" data-original>View kept original</button>':'');
+ $('.reader').before(notice);
+ notice.onclick=async event=>{
+   const action=event.target.dataset.review;
+   try{
+     if(event.target.hasAttribute('data-original')){
+       const original=await api('original',{id:m.id});
+       $('.reader').textContent=original.text||'Original unavailable.';return;
+     }
+     if(!action)return;
+     const original=action==='keep'?prompt('Paste the original transcript to keep it on this device. Handoffs always use masked text.'):undefined;
+     if(action==='keep'&&!original)return;
+     await api('review',{id:m.id,action,original});
+     await refresh();await open(m.id);
+   }catch(e){toast(e.message);}
+ };
+ if(m.private){$('#download').hidden=true;$('#copy').hidden=true;}
+ if(tab==='handoff'){const preview=$('#handoffPreview');packet().then(text=>preview.textContent=text).catch(e=>preview.textContent=e.message);}
+ if(tab==='summary'&&!m.private){
    const box=document.createElement('details');box.className='ai-brief';
    box.innerHTML='<summary>'+esc(m.summary.model?'Brief generated with '+m.summary.model:'Generate a brief with local AI')+'</summary><div class="model-options"></div>';
    $('.reader').append(box);
@@ -137,7 +159,7 @@ function detail(){
      }catch(e){options.textContent=e.message;}
    });
  }
- async function packet(){history=await api('history/'+m.id);return handoff(m);}
+ async function packet(){const result=await api('handoff',{id:m.id});return handoff(result.memory,result.history);}
  $('#copy').onclick=async()=>{try{await copy(await packet(),'Handoff copied, including the full conversation');}catch(e){toast(e.message);}};
  $('#download').onclick=async()=>{try{const u=URL.createObjectURL(new Blob([await packet()],{type:'text/markdown'}));const a=document.createElement('a');a.href=u;a.download=(m.title.replace(/[^\p{L}\p{N} ._-]/gu,'').trim()||'memory')+'.md';a.click();setTimeout(()=>URL.revokeObjectURL(u),2000);}catch(e){toast(e.message);}};
  if($('#delete'))$('#delete').onclick=()=>{if(confirm('Delete this memory and its saved versions from this device?'))api('change',{id:m.id,action:'delete'}).then(()=>{close();refresh();}).catch(e=>toast(e.message));};
