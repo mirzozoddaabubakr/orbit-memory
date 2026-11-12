@@ -132,9 +132,16 @@ function detail(){
        $('.reader').textContent=original.text||'Original unavailable.';return;
      }
      if(!action)return;
-     const original=action==='keep'?prompt('Paste the original transcript to keep it on this device. Handoffs always use masked text.'):undefined;
-     if(action==='keep'&&!original)return;
-     await api('review',{id:m.id,action,original});
+     if(action==='keep'){
+       if(notice.querySelector('textarea'))return;
+       const label=document.createElement('label');
+       label.textContent='Paste the original transcript. Only the masked version is shared.';
+       const input=document.createElement('textarea');input.rows=5;label.append(input);
+       const save=document.createElement('button');save.className='plain';save.textContent='Keep original on this device';
+       save.onclick=async()=>{try{await api('review',{id:m.id,action:'keep',original:input.value});input.value='';await refresh();await open(m.id);}catch(e){toast(e.message);}};
+       notice.append(label,save);input.focus();return;
+     }
+     await api('review',{id:m.id,action});
      await refresh();await open(m.id);
    }catch(e){toast(e.message);}
  };

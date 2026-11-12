@@ -76,6 +76,7 @@ class MemoryStore:
     def connect(self):
         with closing(sqlite3.connect(self.path, timeout=15)) as db:
             db.row_factory = sqlite3.Row
+            db.execute("PRAGMA secure_delete=ON")
             with db:
                 yield db
 
@@ -151,7 +152,7 @@ class MemoryStore:
     def search(self, query, provider, limit, offset):
         with self.connect() as db:
             db.create_function("fold", 1, lambda value: value.casefold() if value else "")
-            return [dict(row) for row in db.execute("""
+            return [safe_object(dict(row)) for row in db.execute("""
                 SELECT id,title,provider,updated,json_extract(summary,'$.overview') AS overview
                 FROM memories WHERE id NOT IN (SELECT id FROM privacy WHERE private=1) AND (?='' OR fold(provider)=?) AND
                 (instr(fold(title),?) OR instr(fold(transcript),?) OR instr(fold(provider),?))
@@ -171,13 +172,17 @@ class MemoryStore:
             else:
                 source = "SELECT transcript FROM snapshots WHERE id=? ORDER BY rowid LIMIT 1 OFFSET ?"
                 args = (mid,version-1)
-            page = db.execute("SELECT substr(transcript,?,?),length(transcript) FROM ("+source+")",
-                              (offset+1,limit,*args)).fetchone()
-            if not page or offset > page[1]:
+            result = db.execute(source,args).fetchone()
+            if not result:
                 raise ValueError("Invalid version or offset.")
-            end = offset + len(page[0])
-            return {**dict(row), "summary":json.loads(row["summary"]), "transcript":page[0],
-                    "version":version, "earlier_versions":count, "next_offset":end if end < page[1] else None}
+            # Mask before slicing so a page boundary cannot split a credential.
+            transcript = mask(result[0])
+            if offset > len(transcript):
+                raise ValueError("Invalid version or offset.")
+            end=offset+limit
+            return {**safe_object(dict(row)), "summary":safe_object(json.loads(row["summary"])),
+                    "transcript":transcript[offset:end],"version":version,"earlier_versions":count,
+                    "next_offset":end if end < len(transcript) else None}
 
     def snapshots(self, mid):
         with self.connect() as db:

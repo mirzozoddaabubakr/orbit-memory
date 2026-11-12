@@ -32,6 +32,8 @@ async function drain(){
     if(JSON.stringify(clean)!==JSON.stringify(record.item)){
       record.item=clean;await chrome.storage.local.set({[id]:record});
     }
+  }
+  for(const [id,record] of entries){
     // An older queue entry has no verifiable owner. Never replay it under a new login.
     if(!record.ownerKey||record.ownerKey!==storage.key)continue;
     try{await deliver(record.item,record.ownerKey);await chrome.storage.local.remove(id);}
