@@ -82,7 +82,12 @@ class Accounts:
         from urllib.error import HTTPError, URLError
         if not isinstance(email,str) or not isinstance(password,str) or not email.strip() or not password:
             raise AccountError("Enter your email and password.")
-        config=json.loads(Path(__file__).with_name("orbit-auth.json").read_text())
+        try:
+            config=json.loads(Path(__file__).with_name("orbit-auth.json").read_text())
+            if not config.get("url","").startswith("https://") or not config.get("publishable_key"):
+                raise ValueError()
+        except (OSError,ValueError,TypeError) as error:
+            raise AccountError("Account setup is incomplete. Set the Supabase URL and publishable key in orbit-auth.json.",503) from error
         route="signup" if signup else "token?grant_type=password"
         req=Request(config["url"]+"/auth/v1/"+route,
                     data=json.dumps({"email":email.strip(),"password":password}).encode(),

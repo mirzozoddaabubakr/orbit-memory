@@ -1,9 +1,10 @@
 import {icon,colors,providerMark} from './icons.js';
 import {mountUniverse} from './universe.js';
 import {readFile} from './imports.js';
+import {skillSection} from './agents.js';
 
 const $=s=>document.querySelector(s), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const names={universe:'Memory universe',library:'Memory library',starred:'Starred',sources:'Sources'};
+const names={universe:'Memory universe',library:'Memory library',starred:'Starred',sources:'Sources',agents:'MCP & Skills'};
 let real=[],active='universe',filter='',query='',dispose=null,selected=null,tab='summary',history=[],loaded=false,failure='',sort='recent';
 let account;
 const providers=()=>[...new Set(real.map(m=>m.provider))].sort((a,b)=>a.localeCompare(b));
@@ -18,7 +19,7 @@ async function api(path,data){
 let toastTimer;
 function toast(msg){$('#toast').textContent=msg;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),3500);}
 async function refresh(){try{real=await api('memories');loaded=true;failure='';}catch(e){failure=e.message;}render();}
-function navButton(id,label,count){return '<button class="nav-button '+(active===id&&!filter?'chosen':'')+'" data-nav="'+id+'">'+icon(id==='sources'?'link':id==='starred'?'star':id)+'<span>'+esc(label)+'</span>'+(count===undefined?'':'<small>'+count+'</small>')+'</button>';}
+function navButton(id,label,count){return '<button class="nav-button '+(active===id&&!filter?'chosen':'')+'" data-nav="'+id+'">'+icon(id==='sources'?'link':id==='agents'?'spark':id==='starred'?'star':id)+'<span>'+esc(label)+'</span>'+(count===undefined?'':'<small>'+count+'</small>')+'</button>';}
 function navigate(id,p=''){active=id;filter=p;query='';$('#search').value='';location.hash=p?'source/'+encodeURIComponent(p):id;document.body.classList.remove('show-menu');render();}
 function fromHash(){const hash=decodeURIComponent(location.hash.slice(1));filter=hash.startsWith('source/')?hash.slice(7):'';active=filter?'library':Object.hasOwn(names,hash)?hash:'universe';render();}
 function visible(){
@@ -38,12 +39,12 @@ function render(){
  $('.source-label').hidden=!pnames.length;
  const firstMemory=loaded&&!failure&&!items.length&&!query&&['universe','library'].includes(active);
  $('#add').hidden=firstMemory;
- $('#nav').innerHTML=navButton('universe',names.universe)+navButton('library',names.library,items.length)+navButton('starred','Starred')+navButton('sources','Sources');
+ $('#nav').innerHTML=navButton('universe',names.universe)+navButton('library',names.library,items.length)+navButton('starred','Starred')+navButton('agents',names.agents)+navButton('sources','Sources');
  $('#sourceNav').innerHTML=pnames.map(p=>'<button class="source-nav '+(filter===p?'selected':'')+'" data-source="'+esc(p)+'"><i style="background:'+tint(p)+'"></i>'+esc(p)+'</button>').join('');
  $('#crumb').textContent=filter||names[active];
  if(failure){$('#main').innerHTML='<h1>Library unavailable</h1><p>Open Orbit on this computer, then retry.</p><button id="retry" class="plain">Retry</button>';$('#retry').onclick=refresh;return;}
  if(!loaded){$('#main').innerHTML='<p>Opening your library…</p>';return;}
- if(active==='sources'&&!query){sources();return;}
+ if(['sources','agents'].includes(active)&&!query){sources();return;}
  const home=active==='universe'&&!query;
  const title=query?'Search results':filter?filter+' memories':names[active];
  const heading='<div class="page-intro"><h1>'+esc(title)+'</h1></div>';
@@ -67,9 +68,15 @@ function sources(){
  }
  const agent='<select id="agentChoice" aria-label="Choose an agent"><option value="">Choose an agent…</option></select><p class="agent-instructions"></p><pre class="agent-config" hidden></pre><button class="plain agent-copy" hidden>Copy setup</button><a class="plain agent-download" download="Orbit Memory.mcpb" hidden>Download Orbit extension</a>';
  const browser='<ol><li>In Chrome or Edge extensions, turn on <strong>Developer mode</strong>.</li><li>Choose <strong>Load unpacked</strong> and select the Orbit folder. <button class="inline" id="folder">Copy folder path</button></li><li>Open the extension and paste your pairing code. <button class="inline" id="pairKey">Copy code</button></li><li>Open a chat and choose <strong>Enable capture</strong>.</li></ol><p>Only loaded chat text is saved. For another site, choose <strong>Configure another AI site</strong> or <strong>Save selected text</strong> in the extension.</p>';
- main.innerHTML='<div class="page-intro"><h1>Sources</h1></div><section class="connection-list" aria-label="Connection setup">'+
-   row('link','MCP connection','Connect an AI agent to your library.',agent)+
-   row('universe','Browser extension','Save chats as you browse.',browser)+'</section>';
+ const agents=active==='agents';
+ main.innerHTML='<div class="page-intro"><h1>'+names[active]+'</h1></div><section class="connection-list" aria-label="Connection setup">'+
+   (agents?row('link','MCP connection','Connect an AI agent to your library.',agent):
+   row('universe','Browser extension','Save chats as you browse.',browser))+'</section>'+(agents?skillSection(icon):'');
+ if(!agents){
+   $('#folder').onclick=async()=>{try{await copy((await api('setup')).folder,'Extension folder path copied');}catch(e){toast(e.message);}};
+   $('#pairKey').onclick=async()=>{try{await copy((await api('setup')).key,'Pairing code copied');}catch(e){toast(e.message);}};
+   return;
+ }
  const select=$('#agentChoice'),settings=select.closest('details');
  settings.addEventListener('toggle',async()=>{
    if(!settings.open||select.options.length>1||select.disabled)return;
@@ -94,8 +101,6 @@ function sources(){
    }catch(e){settings.querySelector('.agent-instructions').textContent='Could not load setup. Reopen to retry.';}
    finally{select.disabled=false;}
  });
- $('#folder').onclick=async()=>{try{await copy((await api('setup')).folder,'Extension folder path copied');}catch(e){toast(e.message);}};
- $('#pairKey').onclick=async()=>{try{await copy((await api('setup')).key,'Pairing code copied');}catch(e){toast(e.message);}};
 }
 
 async function copy(t,msg){try{await navigator.clipboard.writeText(t);toast(msg);}catch{throw Error('Clipboard unavailable. Use Download handoff or allow clipboard access.');}}

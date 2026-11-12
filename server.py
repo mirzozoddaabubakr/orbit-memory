@@ -67,6 +67,12 @@ class OrbitHandler(BaseHTTPRequestHandler):
             return self.reply(401,{"error":"Sign in to Orbit."})
         if account and route.startswith("/api/"):
             self.store=self.server.accounts.store(account["id"])
+        if route.startswith("/api/skills/"):
+            name=route.removeprefix("/api/skills/")
+            if name not in ("orbit-memory","orbit-handoff"):
+                return self.reply(404,{"error":"Skill not found."})
+            return self.reply(200,(ROOT/"skills"/name/"SKILL.md").read_bytes(),"text/markdown",
+                              headers={"Content-Disposition":'attachment; filename="SKILL.md"'})
         if route == "/api/memories":
             return self.reply(200, self.store.list())
         if route == "/api/agent-connections":

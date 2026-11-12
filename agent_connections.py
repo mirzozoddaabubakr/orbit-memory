@@ -3,6 +3,7 @@ import json
 import os
 import re
 import sys
+import shutil
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -13,6 +14,13 @@ PYTHON = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 ENTRY = {"command":str(PYTHON),"args":[str(ROOT / "orbit_mcp.py")],"env":{"PYTHONUTF8":"1"}}
 SERVERS = {"mcpServers":{"orbit":ENTRY}}
 PLUGIN = {"name":"orbit-memory", "version":"1.0.0", "description":"Save conversations on this device and recall them across agents."}
+
+
+def bundle_skills(destination):
+    for skill in ("orbit-memory","orbit-handoff"):
+        target=destination/"skills"/skill
+        target.mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(ROOT/"skills"/skill/"SKILL.md",target/"SKILL.md")
 
 
 def hooks(agent, key_file=None):
@@ -53,8 +61,10 @@ def configurations(profile=None):
             write_json(out/rel,json.loads((ROOT/rel).read_text(encoding="utf-8")))
         write_json(codex/"mcp.json",{"mcpServers":{"orbit":{"type":"stdio",**entry}}})
         write_json(codex/"hooks/hooks.json",hooks("codex",key_file))
+        for plugin in (out/"claude-code",out/"gemini-cli",codex):
+            bundle_skills(plugin)
     return {
-        "Claude Code":{"help":"Run these two commands one at a time inside Claude Code, then reload plugins or start a new session. Orbit will save the visible conversation after each reply. To try it for just one session, use the Claude with Orbit launcher.",
+        "Claude Code":{"help":"Run these two commands one at a time inside Claude Code, then reload plugins or start a new session. Orbit will save the visible conversation after each reply.",
                        "value":f'/plugin marketplace add "{out.as_posix()}"\n/plugin install orbit-memory@orbit-local'},
         "Claude Desktop":{"help":"Install the desktop extension and enter your agent pairing code. Ask Claude to save a conversation or recall a memory.",
                           "download":"/api/orbit-memory.mcpb"},
@@ -88,6 +98,8 @@ def prepare():
     write_json(codex/"mcp.json",{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
                "mcpServers":{"orbit":{"type":"stdio",**ENTRY}}})
     write_json(codex/"hooks/hooks.json",hooks("codex"))
+    for plugin in (claude,gemini,codex):
+        bundle_skills(plugin)
     write_json(ROOT/".agents/plugins/marketplace.json",{"name":"orbit-local","plugins":[{"name":"orbit-memory",
                "source":{"source":"local","path":"./plugins/orbit-memory"},"category":"Productivity",
                "policy":{"installation":"AVAILABLE","authentication":"ON_INSTALL"}}]})
