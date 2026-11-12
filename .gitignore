@@ -11,3 +11,14 @@ plugins/
 .env
 .env.*
 !.env.example
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.pem
+*.p12
+*.pfx
+.venv/
+venv/
+integrations/
+accounts.sqlite3*

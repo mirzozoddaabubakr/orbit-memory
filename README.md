@@ -73,3 +73,8 @@ The library and extension pairing key are stored in `%LOCALAPPDATA%\OrbitMemory\
 ## Verification
 
 Run `python -m unittest discover -s tests -v` for storage, capture authentication, concurrent saves, version retention, and the local model response contract. Run `node --test tests/imports.test.mjs` for the file import cases.
+ 
+## Security and license
+
+Read [SECURITY.md](SECURITY.md) before sharing configuration, backups or transcripts.
+Orbit is available under the [MIT License](LICENSE).
