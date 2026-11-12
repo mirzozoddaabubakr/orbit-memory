@@ -22,7 +22,8 @@ async def run():
         key=accounts.pairing_key(str(uuid4()),"agent")
         params = StdioServerParameters(command=sys.executable,args=[str(ROOT/"orbit_mcp.py")],
                     cwd=tmp,env={**os.environ,"ORBIT_DATA_DIR":tmp,"PYTHONUTF8":"1","ORBIT_AGENT_KEY":key})
-        text = "We chose ellipses. Next, test 轨道."
+        fake_key = "sk-proj-" + "F"*36
+        text = "We chose ellipses. Next, test 轨道. " + fake_key
         async with stdio_client(params) as (reader,writer), ClientSession(reader,writer) as client:
             await client.initialize()
             assert len((await client.list_tools()).tools)==4
@@ -54,10 +55,17 @@ async def run():
                 assert not r.isError
                 parts.append(r.structuredContent["transcript"])
                 offset=r.structuredContent["next_offset"]
-            assert "".join(parts)==text+"\n\nYou: What next?\n\nClaude: Try tilt."
+            assert fake_key not in "".join(parts)
+            assert "".join(parts)==text.replace(fake_key,"<redacted:OpenAI-key>")+"\n\nYou: What next?\n\nClaude: Try tilt."
+            owner=accounts.paired_owner(key,"agent")
+            accounts.store(owner).review(mid,"private")
+            hidden=await client.call_tool("orbit_search_memories",{"query":"轨道"})
+            assert hidden.structuredContent["memories"]==[]
+            forbidden=await client.call_tool("orbit_read_memory",{"memory_id":mid})
+            assert forbidden.isError
             bad=await client.call_tool("orbit_read_memory",{"memory_id":mid,"limit":0})
             assert bad.isError
-    print("Verified MCP discovery, save, idempotent append, cross-client search, paged handoff and Desktop bundle.")
+    print("Verified MCP discovery, save, idempotent append, cross-client search, paged handoff and Desktop bundle; fake key redacted and private memory excluded across MCP processes.")
 
 
 if __name__=="__main__":
