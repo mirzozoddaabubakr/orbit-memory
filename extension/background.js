@@ -64,3 +64,12 @@ chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
   }).then(()=>reply({ok:true})).catch(async e=>{await chrome.storage.local.set({lastError:e.message});reply({ok:false});});
   return true;
 });
+chrome.runtime.onMessage.addListener((msg,sender)=>{
+  if(msg.type!=='open-recall'||!sender.tab||sender.frameId!==0)return;
+  const hosts=['claude.ai','chatgpt.com','gemini.google.com','chat.qwen.ai'];
+  const source=new URL(sender.url);
+  if(source.protocol==='https:'&&hosts.includes(source.hostname)){
+    chrome.windows.create({type:'popup',width:560,height:640,
+      url:chrome.runtime.getURL('recall.html')+'?tab='+sender.tab.id});
+  }
+});

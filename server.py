@@ -105,7 +105,7 @@ class OrbitHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         capture = self.path == "/api/capture"
-        if capture or self.path == "/api/selection":
+        if capture or self.path in ("/api/selection", "/api/recall"):
             valid_host = self.headers.get("Host") == f"127.0.0.1:{self.server.server_port}"
             header=self.headers.get("Authorization","")
             owner=self.server.accounts.paired_owner(header[7:],"extension") if header.startswith("Bearer ") else None
@@ -136,11 +136,14 @@ class OrbitHandler(BaseHTTPRequestHandler):
             if self.path=="/api/auth/logout":
                 self.server.accounts.logout(self.cookie("orbit_session"))
                 return self.reply(200,{"ok":True},headers={"Set-Cookie":"orbit_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax"})
-            if self.path not in ("/api/capture","/api/selection","/api/pair"):
+            if self.path not in ("/api/capture","/api/selection","/api/recall","/api/pair"):
                 account=self.signed_in()
                 if not account:
                     return self.reply(401,{"error":"Sign in to Orbit."})
                 self.store=self.server.accounts.store(account["id"])
+            if self.path == "/api/recall":
+                from recall import recall
+                return self.reply(200, recall(self.store, data.get("topic"), data.get("max_tokens",1500)))
             if self.path in ("/api/memories", "/api/capture", "/api/selection"):
                 return self.reply(200, {"id": self.store.save(data, capture)})
             if self.path == "/api/extension-loaded":
