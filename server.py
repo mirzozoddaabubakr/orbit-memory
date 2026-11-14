@@ -91,6 +91,8 @@ class OrbitHandler(BaseHTTPRequestHandler):
         if route == "/api/models":
             from local_brief import models
             return self.reply(200, models())
+        if route == "/api/checklist":
+            return self.reply(200, self.store.setup_steps())
         if route == "/api/setup":
             return self.reply(200, {"key": self.server.accounts.pairing_key(account["id"],"extension"), "folder": str(ROOT / "extension")})
         match = re.fullmatch(r"/api/history/([0-9a-f]{32})", route)
@@ -141,6 +143,9 @@ class OrbitHandler(BaseHTTPRequestHandler):
                 self.store=self.server.accounts.store(account["id"])
             if self.path in ("/api/memories", "/api/capture", "/api/selection"):
                 return self.reply(200, {"id": self.store.save(data, capture)})
+            if self.path == "/api/extension-loaded":
+                self.store.complete_step("extension")
+                return self.reply(200, {"ok": True})
             if self.path=="/api/review":
                 self.store.review(data.get("id"),data.get("action"),data.get("original"))
                 return self.reply(200,{"ok":True})
@@ -149,7 +154,9 @@ class OrbitHandler(BaseHTTPRequestHandler):
             if self.path=="/api/handoff":
                 return self.reply(200,self.store.export(data.get("id")))
             if self.path == "/api/pair":
-                if self.server.accounts.paired_owner(str(data.get("key", "")),"extension"):
+                owner = self.server.accounts.paired_owner(str(data.get("key", "")), "extension")
+                if owner:
+                    self.server.accounts.store(owner).complete_step("pair")
                     return self.reply(200, {"ok": True})
                 return self.reply(403, {"error": "Pairing code did not match."})
             if self.path == "/api/change":

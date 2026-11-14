@@ -16,6 +16,37 @@ async function api(path,data){
  if(r.status===401){location.replace('/');throw Error('Sign in to Orbit.');}
  const body=await r.json();if(!r.ok)throw Error(body.error||'Request failed');return body;
 }
+function startChecklist(){
+ const panel=$('#checklist');
+ const steps=[
+   ['account','Create an account'],['extension','Load the extension','#sources'],
+   ['pair','Pair the extension','#sources'],['chat','Save your first chat'],
+   ['agent','Connect an agent and use an Orbit tool','#agents']
+ ];
+ let reported=false, busy=false;
+ async function update(){
+   if(document.hidden||busy)return;
+   busy=true;
+   try{
+     if(!reported && document.documentElement.dataset.orbitExtension==='loaded'){
+       await api('extension-loaded',{});reported=true;
+     }
+     const state=await api('checklist');
+     const count=steps.filter(([key])=>state[key]).length;
+     const first=panel.hidden;
+     panel.querySelector('small').textContent=count+' / 5';
+     panel.querySelector('ol').innerHTML=steps.map(([key,label,url])=>{
+       const action=url?'<a href="'+url+'">'+label+'</a>':key==='chat'?'<button class="inline">'+label+'</button>':label;
+       return '<li>'+action+' <span>'+(state[key]?'Done':'Not done')+'</span></li>';
+     }).join('');
+     panel.querySelector('button').onclick=addModal;
+     panel.hidden=false;
+     if(first)panel.open=count<5;
+   }catch(e){toast(e.message);}
+   finally{busy=false;}
+ }
+ update();window.addEventListener('focus',update);setInterval(update,5000);
+}
 let toastTimer;
 function toast(msg){$('#toast').textContent=msg;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),3500);}
 async function refresh(){try{real=await api('memories');loaded=true;failure='';}catch(e){failure=e.message;}render();}
@@ -67,7 +98,7 @@ function sources(){
    return '<details class="setup-row"><summary><span class="setup-icon">'+icon(symbol,20)+'</span><span><strong>'+title+'</strong><small>'+description+'</small></span>'+icon('chevron',16)+'</summary><div class="setup-body">'+body+'</div></details>';
  }
  const agent='<select id="agentChoice" aria-label="Choose an agent"><option value="">Choose an agent…</option></select><p class="agent-instructions"></p><pre class="agent-config" hidden></pre><button class="plain agent-copy" hidden>Copy setup</button><a class="plain agent-download" download="Orbit Memory.mcpb" hidden>Download Orbit extension</a>';
- const browser='<ol><li>In Chrome or Edge extensions, turn on <strong>Developer mode</strong>.</li><li>Choose <strong>Load unpacked</strong> and select the Orbit folder. <button class="inline" id="folder">Copy folder path</button></li><li>Open the extension and paste your pairing code. <button class="inline" id="pairKey">Copy code</button></li><li>Open a chat and choose <strong>Enable capture</strong>.</li></ol><p>Only loaded chat text is saved. For another site, choose <strong>Configure another AI site</strong> or <strong>Save selected text</strong> in the extension.</p>';
+ const browser='<ol><li>In Chrome or Edge extensions, turn on <strong>Developer mode</strong>.</li><li>Choose <strong>Load unpacked</strong> and select the extension folder, then reload the Orbit tab. <button class="inline" id="folder">Copy folder path</button></li><li>Open the extension and paste your pairing code. <button class="inline" id="pairKey">Copy code</button></li><li>Open a chat and choose <strong>Enable capture</strong>.</li></ol><p>Only loaded chat text is saved. For another site, choose <strong>Configure another AI site</strong> or <strong>Save selected text</strong> in the extension.</p>';
  const agents=active==='agents';
  main.innerHTML='<div class="page-intro"><h1>'+names[active]+'</h1></div><section class="connection-list" aria-label="Connection setup">'+
    (agents?row('link','MCP connection','Connect an AI agent to your library.',agent):
@@ -211,6 +242,6 @@ try{
  else{
    $('#accountEmail').textContent=account.email;$('#accountEmail').title=account.email;
    $('#signOut').onclick=async()=>{try{await api('auth/logout',{});localStorage.setItem('orbit-account-change',crypto.randomUUID());location.replace('/login.html');}catch(e){toast(e.message);}};
-   fromHash();refresh();
+   startChecklist();fromHash();refresh();
  }
 }catch(e){failure=e.message;render();}

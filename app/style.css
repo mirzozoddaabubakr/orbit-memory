@@ -66,3 +66,5 @@
 #signOut{margin:6px 0;padding:3px 0;text-align:left;font-size:11px;color:var(--muted);text-decoration:underline}
 @media(max-width:700px){.auth-shell{display:block;min-height:0;padding-top:125px;max-width:440px}.auth-art.first-memory{inset:0 0 auto;height:125px}.auth-card{padding:28px}.auth-brand{top:18px;left:16px}}
 .skill-section{max-width:960px;margin-top:32px}.skill-section>p,.skill-card p{color:var(--muted);font-size:13px}.skill-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}.skill-card{padding:22px;border:1px solid var(--line);border-radius:12px;background:var(--card)}.skill-card h3{font-size:17px;font-weight:550;margin-bottom:6px}.skill-card>div{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:22px}@media(max-width:600px){.skill-cards{grid-template-columns:1fr}}
+
+#checklist {margin: 1rem clamp(1rem,3vw,3rem) 0; padding: .8rem 1rem; background: var(--panel,#191a20); border-radius: .65rem} #checklist summary {cursor:pointer} #checklist small, #checklist li span {color:#b0b3bf;margin-left:.6rem} #checklist li {padding:.18rem} #checklist a {color:inherit}

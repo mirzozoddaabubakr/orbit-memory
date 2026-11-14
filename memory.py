@@ -80,6 +80,18 @@ class MemoryStore:
             with db:
                 yield db
 
+    def complete_step(self, step):
+        with self.connect() as db:
+            db.execute("INSERT OR IGNORE INTO settings VALUES (?, '1')", ("setup_"+step,))
+
+    def setup_steps(self):
+        with self.connect() as db:
+            steps = {row[0] for row in db.execute("SELECT name FROM settings WHERE name LIKE 'setup_%'")}
+            saved = bool(db.execute("SELECT 1 FROM memories LIMIT 1").fetchone())
+        return {"account": True, "extension": "setup_extension" in steps or "setup_pair" in steps,
+                "pair": "setup_pair" in steps, "chat": saved or "setup_chat" in steps,
+                "agent": "setup_agent" in steps}
+
     def key(self):
         with self.connect() as db:
             return db.execute("SELECT value FROM settings WHERE name='pair'").fetchone()[0]
@@ -142,6 +154,7 @@ class MemoryStore:
                 if old[0] not in transcript:
                     db.execute("INSERT OR IGNORE INTO snapshots VALUES (?,?,?)",
                                (mid, hashlib.sha256(old[0].encode()).hexdigest(), old[0]))
+            db.execute("INSERT OR IGNORE INTO settings VALUES ('setup_chat','1')")
             db.execute("UPDATE privacy SET original=NULL,reviewed=0 WHERE id=?", (mid,))
             db.execute("""INSERT INTO memories(id,title,provider,transcript,summary,url,created,updated)
                    VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,

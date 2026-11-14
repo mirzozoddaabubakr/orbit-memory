@@ -144,7 +144,9 @@ class Accounts:
                 owner=db.execute("SELECT uid FROM captured_sessions WHERE host=? AND sid=?",(host,sid)).fetchone()[0]
                 if owner!=uid:
                     raise AccountError("This chat was paired with a different Orbit account. Start a new chat.",403)
-        return self.store(uid)
+        store = self.store(uid)
+        store.complete_step("agent")
+        return store
 
 
 def agent_key(path=None):
