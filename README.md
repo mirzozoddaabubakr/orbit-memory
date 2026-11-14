@@ -46,6 +46,16 @@ Each saved conversation adds a planet to your map. A source appears in the sideb
 
 ## Continue with a different AI
 
+### Load Orbit memory
+
+Pair the extension under **Sources**. Open the extension toolbar and choose **Load Orbit memory**. The private window uses the draft when accessible. Edit the topic, choose **Find context**, remove unwanted chats, and confirm **Copy selected context**. Paste into any assistant. To add the button beside a supported composer, choose **Show memory button on this site**. This permission works independently of capture.
+
+Qwen supports confirmed insertion into the current draft. Claude, ChatGPT and Gemini ship with copy only. Use the toolbar if the button is missing. Orbit leaves sending to you.
+
+With the Orbit Memory skill installed, agents call `orbit_recall(topic, max_tokens=1500)` at task start. Results start with a historical-reference header. SQLite ranks masked, shareable matches by full-text relevance and breaks ties by recency. A recent fallback is labeled when nothing matches. Use a stable memory ID with `orbit_read_memory` for details.
+
+The budget covers rendered reference text, including its header and source lines. The estimate is UTF-8 byte length divided by three, multiplied by 1.15 and rounded up. MCP transport and structured metadata are outside the estimate. The maximum is 8,000 estimated tokens.
+
 ### Connect through MCP
 
 Open **MCP & Skills → MCP connection** for the setup that matches your app. Claude Code, Codex, Gemini CLI, and Qwen Code have turn-end hooks that save visible chat text into this same library. Start a new session after enabling the integration and accepting any hook trust prompt. The local library works even with the Orbit browser window closed.
@@ -56,7 +66,7 @@ clients can copy the MCP configuration shown for their signed-in account. The ge
 generated configuration needs an explicit agent pairing key. Hosted web clients that
 require a remote HTTPS connector cannot launch this local server.
 
-The four MCP tools are **orbit_save_conversation**, **orbit_append_turn**, **orbit_search_memories**, and **orbit_read_memory**. A host integrating Orbit directly can call the append tool after committing each exchange, passing its agent name, a stable conversation ID, a title, a unique turn ID, and both visible messages. Reusing that turn ID makes retries safe. Reading a long transcript returns a next offset for the following page. In an MCP-only client, a project instruction can request a save after each reply. Capture then depends on the client or model making that call.
+The five MCP tools are **orbit_recall**, **orbit_save_conversation**, **orbit_append_turn**, **orbit_search_memories**, and **orbit_read_memory**. A host integrating Orbit directly can call the append tool after committing each exchange, passing its agent name, a stable conversation ID, a title, a unique turn ID, and both visible messages. Reusing that turn ID makes retries safe. Reading a long transcript returns a next offset for the following page. In an MCP-only client, a project instruction can request a save after each reply. Capture then depends on the client or model making that call.
 
 The hooks read the current session transcript supplied by the host. They save visible user and assistant text and skip private reasoning, tool-call records and attachment files. Earlier unrelated chats require a separate import. Remove the plugin, or its Orbit hook and MCP entry, in the host to disconnect it. The MCP tools work with the memories that already exist in the library.
 
