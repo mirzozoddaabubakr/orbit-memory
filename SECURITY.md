@@ -17,3 +17,7 @@ History cleanup is a separate action. Make a backup, coordinate with collaborato
 ## Local data
 
 Keep account configuration, databases and their SQLite sidecars, pairing credentials, generated integrations and Python environments out of version control. Backups and exports need the same care as the original conversations.
+
+## Known limits
+
+Pattern matching can miss unfamiliar credential formats. Avoid pasting secrets into chats.
