@@ -52,7 +52,7 @@ function toast(msg){$('#toast').textContent=msg;$('#toast').classList.add('show'
 async function refresh(){try{[real,projects]=await Promise.all([api('memories'),api('projects')]);loaded=true;failure='';}catch(e){failure=e.message;}render();}
 function navButton(id,label,count){return '<button class="nav-button '+(active===id&&!filter?'chosen':'')+'" data-nav="'+id+'">'+icon(id==='sources'?'link':id==='agents'?'spark':id==='starred'?'star':id)+'<span>'+esc(label)+'</span>'+(count===undefined?'':'<small>'+count+'</small>')+'</button>';}
 function navigate(id,p=''){active=id;filter=p;query='';$('#search').value='';location.hash=p?'source/'+encodeURIComponent(p):id;document.body.classList.remove('show-menu');render();}
-function fromHash(){const hash=decodeURIComponent(location.hash.slice(1));filter=hash.startsWith('source/')?hash.slice(7):'';active=filter?'library':Object.hasOwn(names,hash)?hash:'universe';render();}
+function fromHash(){const hash=decodeURIComponent(location.hash.slice(1));if(/^memory\/[a-f0-9]{32}$/.test(hash)){active='library';filter='';render();if(loaded)open(hash.slice(7));return;}filter=hash.startsWith('source/')?hash.slice(7):'';active=filter?'library':Object.hasOwn(names,hash)?hash:'universe';render();}
 function visible(){
  let list=real.filter(m=>(!filter||m.provider===filter)&&(active!=='starred'||m.starred)&&(!query||[m.title,m.provider,m.transcript,m.summary.overview].some(s=>s.toLowerCase().includes(query.toLowerCase()))));
  if(sort==='title')list.sort((a,b)=>a.title.localeCompare(b.title));return list;
@@ -110,13 +110,14 @@ async function showBrief(id){
  const box=$('#projectBrief');
  async function load(model){paint(await api('project-brief',{project_id:id,model}));}
  function paint(brief){
-   box.innerHTML='<h3>Project brief · '+esc(brief.status)+'</h3>'+['Goal','Current state','Decisions','Open questions','Next steps'].map(section=>'<h4>'+section+'</h4>'+brief.lines.filter(l=>l.section===section).map(l=>'<article>'+(l.model_suggested?'<small>Local model selection</small>':'')+'<p>'+esc(l.text)+'</p><button class="inline" data-open="'+l.source_id+'">'+esc(l.source_title)+'</button> '+(l.state==='pending'?'<strong>Proposed</strong> <button data-action="accept">Accept</button><button data-action="reject">Reject</button>':'')+' <button data-action="edit">Edit</button><input type="hidden" value="'+l.id+'"><details><summary>Source excerpt</summary><p>'+esc(l.evidence)+'</p></details></article>').join('')).join('')+'<button data-action="review">Mark reviewed</button> <button id="regenerate">Check for changes</button> <button id="localDraft">Draft with local model</button>';
+   box.innerHTML='<h3>Project brief · '+esc(brief.status)+'</h3>'+['Goal','Current state','Decisions','Open questions','Next steps'].map(section=>'<h4>'+section+'</h4>'+brief.lines.filter(l=>l.section===section).map(l=>'<article>'+(l.model_suggested?'<small>Local model selection</small>':'')+'<p>'+esc(l.text)+'</p><button class="inline" data-open="'+l.source_id+'">'+esc(l.source_title)+'</button> '+(l.state==='pending'?'<strong>Proposed</strong> <button data-action="accept">Accept</button><button data-action="reject">Reject</button>':'')+' <button data-action="edit">Edit</button><input type="hidden" value="'+l.id+'"><details><summary>Source excerpt</summary><p>'+esc(l.evidence)+'</p></details></article>').join('')).join('')+'<button data-action="review">Mark reviewed</button> <button id="regenerate">Check for changes</button> <button id="projectExport">Export brief</button> <button id="localDraft">Draft with local model</button>';
    box.querySelectorAll('[data-action]').forEach(b=>b.onclick=async()=>{
      const action=b.dataset.action,article=b.closest('article'),line=article?.querySelector('input').value;
      const text=action==='edit'?prompt('Edit this line using the linked source',article.querySelector('p').textContent):undefined;
      if(action==='edit'&&!text)return;
      try{paint(await api('project-review',{project_id:id,action,line,text}));}catch(e){toast(e.message);}
    });
+   box.querySelector('#projectExport').onclick=async()=>{try{const packet=await api('project-handoff',{project_id:id});const url=URL.createObjectURL(new Blob([packet.text],{type:'text/plain'}));const a=document.createElement('a');a.href=url;a.download='orbit-project-brief.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){toast(e.message);}};
    box.querySelector('#regenerate').onclick=()=>load().catch(e=>toast(e.message));
    box.querySelector('#localDraft').onclick=async()=>{try{const models=await api('models');if(!models.length){toast('No local Ollama model available');return;}const model=prompt('Choose a local model: '+models.join(', '),models[0]);if(model)await load(model);}catch(e){toast(e.message);}};
  }
@@ -282,6 +283,6 @@ try{
  else{
    $('#accountEmail').textContent=account.email;$('#accountEmail').title=account.email;
    $('#signOut').onclick=async()=>{try{await api('auth/logout',{});localStorage.setItem('orbit-account-change',crypto.randomUUID());location.replace('/login.html');}catch(e){toast(e.message);}};
-   startChecklist();fromHash();refresh();
+   startChecklist();await refresh();fromHash();
  }
 }catch(e){failure=e.message;render();}

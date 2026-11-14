@@ -14,16 +14,16 @@ function render(){
   el('items').replaceChildren();
   for(const item of result?.items||[]){
     const label=document.createElement('label'), box=document.createElement('input');
-    box.type='checkbox';box.checked=selected.has(item.memory_id);
-    box.onchange=()=>{if(box.checked)selected.add(item.memory_id);else selected.delete(item.memory_id);render();};
+    box.type='checkbox';box.checked=selected.has((item.project_id||item.memory_id));
+    box.onchange=()=>{if(box.checked)selected.add((item.project_id||item.memory_id));else selected.delete((item.project_id||item.memory_id));render();};
     label.append(box,document.createTextNode(item.title));el('items').append(label);
   }
-  const blocks=result?.items.filter(item=>selected.has(item.memory_id)).map(item=>item.reference)||[];
+  const blocks=result?.items.filter(item=>selected.has((item.project_id||item.memory_id))).map(item=>item.reference)||[];
   el('preview').textContent=result?[result.preamble,...blocks].join('\n\n'):'';
   el('insert').disabled=busy||!blocks.length;el('preview').hidden=!result;el('copy').disabled=busy||!blocks.length;
 }
 function show(next){
-  snapshot=next;selected=new Set(next.result.items.map(item=>item.memory_id));render();
+  snapshot=next;selected=new Set(next.result.items.map(item=>(item.project_id||item.memory_id)));render();
 }
 async function action(fn){
   if(busy)return;
@@ -37,7 +37,7 @@ el('topic').oninput=()=>{snapshot=null;selected.clear();render();};
 async function confirmSelection(write){
   if(!snapshot||!selected.size)return;
   const next=await lookup(snapshot.topic);
-  const refs=result=>result.items.filter(i=>selected.has(i.memory_id)).map(i=>i.reference);
+  const refs=result=>result.items.filter(i=>selected.has((i.project_id||i.memory_id))).map(i=>i.reference);
   if(next.key!==snapshot.key || next.result.preamble!==snapshot.result.preamble ||
      JSON.stringify(refs(next.result))!==JSON.stringify(refs(snapshot.result))){
     show(next); el('status').textContent='Memory changed. Review the updated preview and confirm again.';return;

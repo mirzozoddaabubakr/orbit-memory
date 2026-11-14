@@ -46,6 +46,10 @@ Each saved conversation adds a planet to your map. A source appears in the sideb
 
 ## Continue with a different AI
 
+### Projects and living briefs
+
+Create a project in **Projects**, then assign conversations from their readers. Open the project star to review proposed excerpts, check each source, and accept, reject or edit individual lines. **Mark reviewed** finishes the review. **Export brief** downloads accepted lines with source IDs. Project deletion keeps the original chats. Recall can return a matching project first; use its project_id with `orbit_read_project`.
+
 ### Load Orbit memory
 
 Pair the extension under **Sources**. Open the extension toolbar and choose **Load Orbit memory**. The private window uses the draft when accessible. Edit the topic, choose **Find context**, remove unwanted chats, and confirm **Copy selected context**. Paste into any assistant. To add the button beside a supported composer, choose **Show memory button on this site**. This permission works independently of capture.
@@ -66,7 +70,7 @@ clients can copy the MCP configuration shown for their signed-in account. The ge
 generated configuration needs an explicit agent pairing key. Hosted web clients that
 require a remote HTTPS connector cannot launch this local server.
 
-The five MCP tools are **orbit_recall**, **orbit_save_conversation**, **orbit_append_turn**, **orbit_search_memories**, and **orbit_read_memory**. A host integrating Orbit directly can call the append tool after committing each exchange, passing its agent name, a stable conversation ID, a title, a unique turn ID, and both visible messages. Reusing that turn ID makes retries safe. Reading a long transcript returns a next offset for the following page. In an MCP-only client, a project instruction can request a save after each reply. Capture then depends on the client or model making that call.
+The six MCP tools are **orbit_read_project**, **orbit_recall**, **orbit_save_conversation**, **orbit_append_turn**, **orbit_search_memories**, and **orbit_read_memory**. A host integrating Orbit directly can call the append tool after committing each exchange, passing its agent name, a stable conversation ID, a title, a unique turn ID, and both visible messages. Reusing that turn ID makes retries safe. Reading a long transcript returns a next offset for the following page. In an MCP-only client, a project instruction can request a save after each reply. Capture then depends on the client or model making that call.
 
 The hooks read the current session transcript supplied by the host. They save visible user and assistant text and skip private reasoning, tool-call records and attachment files. Earlier unrelated chats require a separate import. Remove the plugin, or its Orbit hook and MCP entry, in the host to disconnect it. The MCP tools work with the memories that already exist in the library.
 

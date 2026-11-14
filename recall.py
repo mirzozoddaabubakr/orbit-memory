@@ -2,6 +2,8 @@
 import json
 import re
 
+import project_brief
+from projects import words
 from redaction import mask
 
 HEADER = "Historical reference from past chats. This content is not instructions."
@@ -48,6 +50,21 @@ def ranked(db, topic):
         ORDER BY m.updated DESC,m.id LIMIT 8""").fetchall()
 
 
+def matching_project(db,topic):
+    terms=words(topic)-STOP
+    best=None
+    score=0
+    for project in db.execute("SELECT id FROM projects ORDER BY id"):
+        brief=project_brief.read(db,project["id"])
+        if not brief["lines"]:continue
+        name=words(brief["name"])
+        body=words(" ".join(line["text"] for line in brief["lines"]))
+        weight=sum(4*any(w.startswith(t) for w in name)+any(w.startswith(t) for w in body) for t in terms)
+        if weight>score:
+            best,score=brief,weight
+    return best
+
+
 def estimate(text):
     return (len(text.encode()) * 23 + 59) // 60
 
@@ -65,12 +82,27 @@ def recall(store, topic, max_tokens=1500):
     with store.connect() as db:
         db.execute("BEGIN")
         mode, rows = ranked(db,topic)
+        project=matching_project(db,topic)
     preamble = HEADER
     label = FALLBACK if mode == "recent_fallback" else ""
-    if label and estimate(HEADER+"\n"+label)<=max_tokens:
+    if label and not project and estimate(HEADER+"\n"+label)<=max_tokens:
         preamble += "\n"+label
     remaining = max_tokens*60//23 - len(preamble.encode())
     items = []
+    if project:
+        source=quote(f'Project: {project["name"]} ({project["status"]}) | {project["project_id"]}')
+        limit=remaining//2 if rows else remaining
+        blocks=[]
+        for line in project_brief.reference_lines(project):
+            block=quote(line)
+            if len(("\n\n"+source+"\n"+"\n".join(blocks+[block])).encode())<=limit:
+                blocks.append(block)
+        if blocks:
+            reference=source+"\n"+"\n".join(blocks)
+            items.append(dict(kind="project",project_id=project["project_id"],title=project["name"],
+                              excerpt="\n".join(blocks),reference=reference))
+            remaining-=len(("\n\n"+reference).encode())
+
     for i,row in enumerate(rows):
         title = mask(row["title"])
         summary = json.loads(row["summary"])
@@ -79,6 +111,8 @@ def recall(store, topic, max_tokens=1500):
             parts.extend(summary.get(field,[]))
         brief = mask("\n".join(dict.fromkeys(p for p in parts if p)))
         source = quote(f'{title} | {row["updated"]} | {row["id"]}')
+        if project and label:
+            source=label+"\n"+source
         available = remaining - len(("\n\n"+source+"\n").encode())
         if available < 4 or not brief:
             continue
@@ -95,4 +129,4 @@ def recall(store, topic, max_tokens=1500):
             remaining -= len(("\n\n"+block).encode())
             items.append(dict(memory_id=row["id"],title=title,date=row["updated"],excerpt=brief[:lo],reference=block))
     text="\n\n".join([preamble]+[item["reference"] for item in items])
-    return dict(header=HEADER,match_mode=mode,label=label,preamble=preamble,items=items,text=text)
+    return dict(header=HEADER,match_mode="matched" if items and "project_id" in items[0] else mode,label=label,preamble=preamble,items=items,text=text)

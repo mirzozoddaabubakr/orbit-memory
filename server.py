@@ -145,6 +145,8 @@ class OrbitHandler(BaseHTTPRequestHandler):
                 if not account:
                     return self.reply(401,{"error":"Sign in to Orbit."})
                 self.store=self.server.accounts.store(account["id"])
+            if self.path == "/api/project-handoff":
+                return self.reply(200,project_brief.handoff(self.store,data.get("project_id")))
             if self.path == "/api/project-brief":
                 return self.reply(200,project_brief.generate(self.store,data.get("project_id"),data.get("model")))
             if self.path == "/api/project-review":

@@ -119,3 +119,20 @@ def review(store,data):
             else:raise ValueError("Unknown review action.")
             db.execute("UPDATE projects SET reviewed=0 WHERE id=?",(pid,))
         return read(db,pid,True)
+
+def reference_lines(brief):
+    for section in SECTIONS:
+        for line in brief["lines"]:
+            if line["section"]==section:
+                yield f'{section} [{line["source_id"]}] {line["text"]}'
+
+
+def handoff(store,pid):
+    from recall import HEADER,quote
+    with store.connect() as db:
+        db.execute("BEGIN")
+        brief=read(db,pid)
+        for line in brief["lines"]:
+            line["source_link"]=f'http://127.0.0.1:47831/#memory/{line["source_id"]}'
+        return {**brief,"header":HEADER,"text":HEADER+"\n"+quote(
+            "\n".join([f'{brief["name"]} ({brief["status"]})',*[f'{line["section"]}: {line["text"]} ({line["source_link"]})' for line in brief["lines"]]]))}
