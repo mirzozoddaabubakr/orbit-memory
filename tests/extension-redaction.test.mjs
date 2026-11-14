@@ -5,21 +5,21 @@ import test from 'node:test';
 
 test('offline extension queue stores masked chat text and metadata',async()=>{
   const rules=JSON.parse(readFileSync('extension/secret-patterns.json','utf8'));
-  let listener;
+  const listeners=[];
   const event={addListener(){}};
   const state={key:'fixture-pairing',enabled:['example.test']};
   const chrome={storage:{local:{
     get:async()=>({...state}), set:async data=>Object.assign(state,data),remove:async k=>delete state[k]
   }},alarms:{onAlarm:event},runtime:{getURL:()=>'/rules',onInstalled:event,onStartup:event,
-    onMessage:{addListener:fn=>{listener=fn;}}}};
+    onMessage:{addListener:fn=>{listeners.push(fn);}}}};
   const fetch=async url=>{
     if(url==='/rules')return {json:async()=>rules};
     throw Error('Offline fixture');
   };
   vm.runInNewContext(readFileSync('extension/background.js','utf8'),{chrome,fetch,crypto,URL,AbortSignal});
   const url='https://example.test/c/test',fake='ghp_'+'Q'.repeat(36);
-  const result=await new Promise(resolve=>listener({type:'capture',item:{url,title:fake,provider:'Test',transcript:'Bearer '+fake}},
-    {tab:{id:1},url},resolve));
+  const result=await new Promise(resolve=>listeners.forEach(listener=>listener({type:'capture',item:{url,title:fake,provider:'Test',transcript:'Bearer '+fake}},
+    {tab:{id:1},url},resolve)));
   assert.ok(result.ok);
   const record=Object.entries(state).find(([key])=>key.startsWith('pending:'))[1];
   assert.equal(record.item.title,'<redacted:GitHub-token>');
