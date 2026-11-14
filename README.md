@@ -2,28 +2,30 @@
 
 Orbit saves AI conversations in a private library on your computer. Select a planet to read its conversation, search by a phrase, or copy a handoff with the brief and full saved text.
 
-This is a working development version. Supabase handles account sign-in, while
-conversation text remains on the device. Google sign-in and cross-device sync
-are still pending. See the [project history and roadmap](PROJECT_HISTORY.md)
-for what has been built, tested, and left unfinished.
-
 ## Start on Windows
 
-For a new checkout, install Python 3.12, then run the following from the repository folder.
-
-You can also double-click **Setup Orbit.cmd** to install the dependencies and generate
-the client packages. It preserves an existing auth configuration.
+Download the repository ZIP from GitHub, extract it, and open PowerShell in the folder containing `setup.ps1`. Run:
 
 ```powershell
-python -m venv .orbit-mcp
-.\.orbit-mcp\Scripts\python.exe -m pip install -r requirements-mcp.txt
-Copy-Item orbit-auth.example.json orbit-auth.json
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
-Set your Supabase project URL and publishable key in `orbit-auth.json`, then run
-`python agent_connections.py` to build the client packages for your computer.
-Sign up or sign in when Orbit opens. Accounts use Supabase authentication and have
-separate libraries stored on the device.
+Setup checks Python, installs Python 3.12 with Windows Package Manager if needed, prepares the environment and agent packages, and opens Orbit. Keep PowerShell open. You can also double-click **Setup Orbit.cmd**.
+
+Choose **Create an account**. On a fresh install the account and chats stay on this device. Use a password of at least 12 characters. To try your first chat, choose **Add memory**, paste a conversation, save it and open it from **Memory library**. Follow **Sources** to capture from the browser and **MCP & Skills** to connect an agent.
+
+### macOS and Linux
+
+Install Python 3.10 or newer with venv and pip. From the extracted repository run:
+
+```sh
+python3 -m venv .orbit-mcp &&
+.orbit-mcp/bin/python -m pip install -r requirements-mcp.txt &&
+python3 agent_connections.py &&
+.orbit-mcp/bin/python server.py --open
+```
+
+Existing installations with an `orbit-auth.json` configuration continue using their Supabase email accounts. Device accounts are separate. Google sign-in is unavailable.
 
 The agent skills are [Memory](skills/orbit-memory/SKILL.md) and
 [Project handoff](skills/orbit-handoff/SKILL.md). Open **MCP & Skills** in Orbit to

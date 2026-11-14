@@ -76,6 +76,29 @@ class Accounts:
             row=db.execute("SELECT uid FROM credentials WHERE kind=? AND secret=?", (kind,key)).fetchone()
         return row[0] if row else None
 
+    def local_account(self, email, password, signup):
+        email = email.strip().casefold()
+        if len(email) > 254 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+            raise AccountError("Enter a valid email address.")
+        if len(password) > 1024 or (signup and len(password) < 12):
+            raise AccountError("Use a password between 12 and 1024 characters.")
+        with self.db() as db:
+            row = db.execute("SELECT id,salt,password_hash FROM users WHERE email=?", (email,)).fetchone()
+            salt = secrets.token_bytes(16) if signup or not row else row[1]
+            with _hash_slots:
+                hashed = hashlib.scrypt(password.encode(), salt=salt, n=32768, r=8, p=1, maxmem=64*1024*1024)
+            if signup:
+                uid = str(uuid4())
+                try:
+                    db.execute("INSERT INTO users VALUES (?,?,?,?)", (uid,email,salt,hashed))
+                except sqlite3.IntegrityError as error:
+                    raise AccountError("This email already has a device account. Sign in.") from error
+            elif row and hmac.compare_digest(row[2],hashed):
+                uid = row[0]
+            else:
+                raise AccountError("Email or password did not match.",401)
+        return {"id":uid,"email":email}
+
     def authenticate(self, email, password, signup):
         import json
         from urllib.request import Request, urlopen
@@ -86,6 +109,8 @@ class Accounts:
             config=json.loads(Path(__file__).with_name("orbit-auth.json").read_text())
             if not config.get("url","").startswith("https://") or not config.get("publishable_key"):
                 raise ValueError()
+        except FileNotFoundError:
+            return self.local_account(email,password,signup)
         except (OSError,ValueError,TypeError) as error:
             raise AccountError("Account setup is incomplete. Set the Supabase URL and publishable key in orbit-auth.json.",503) from error
         route="signup" if signup else "token?grant_type=password"
