@@ -1,4 +1,5 @@
 """Run Orbit on the loopback interface. Uses only Python's standard library."""
+import project_brief
 import projects
 import argparse
 import json
@@ -144,6 +145,10 @@ class OrbitHandler(BaseHTTPRequestHandler):
                 if not account:
                     return self.reply(401,{"error":"Sign in to Orbit."})
                 self.store=self.server.accounts.store(account["id"])
+            if self.path == "/api/project-brief":
+                return self.reply(200,project_brief.generate(self.store,data.get("project_id"),data.get("model")))
+            if self.path == "/api/project-review":
+                return self.reply(200,project_brief.review(self.store,data))
             if self.path == "/api/projects":
                 return self.reply(200,projects.change(self.store,data))
             if self.path == "/api/project-suggestion":

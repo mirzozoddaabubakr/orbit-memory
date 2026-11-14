@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 import sqlite3
+import project_brief
 import projects
 from recall import initialize as initialize_recall
 from redaction import mask, safe_object
@@ -73,6 +74,7 @@ class MemoryStore:
                     db.execute("UPDATE snapshots SET transcript=? WHERE rowid=?",(mask(row[1]),row[0]))
                 db.execute("INSERT INTO settings VALUES ('masked_v1','1')")
             projects.initialize(db)
+            project_brief.initialize(db)
             initialize_recall(db)
             db.execute("INSERT OR IGNORE INTO settings VALUES ('pair',?)", (secrets.token_urlsafe(32),))
 

@@ -121,7 +121,7 @@ def prepare():
         z.writestr("server/start.py", "from pathlib import Path\nimport site\n"
                    "site.addsitedir(str(Path(__file__).parent / 'lib'))\n"
                    "from orbit_mcp import server\nserver.run(transport='stdio')\n")
-        for name in ("orbit_mcp.py","memory.py","recall.py","projects.py","orbit_accounts.py","redaction.py","extension/secret-patterns.json"):
+        for name in ("orbit_mcp.py","memory.py","recall.py","projects.py","project_brief.py","orbit_accounts.py","redaction.py","extension/secret-patterns.json"):
             z.write(ROOT/name,"server/"+name)
         for path in sorted(lib.rglob("*")):
             rel=path.relative_to(lib)

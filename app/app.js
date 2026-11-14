@@ -102,14 +102,31 @@ function openProject(id){
  const p=projects.find(p=>p.id===id);if(!p)return;
  modal(closeBtn()+'<h2>'+esc(p.name)+'</h2><button class="plain" id="renameProject">Rename</button><button class="plain" id="deleteProject">Delete project</button><section id="projectBrief"></section><h3>Conversations</h3>'+real.filter(m=>m.project_id===id).map(m=>'<button class="plain" data-open="'+m.id+'">'+esc(m.title)+'</button>').join(''));
  async function update(action,name){try{await api('projects',{action,project_id:id,name});close();await refresh();}catch(e){toast(e.message);}}
+ showBrief(id);
  $('#renameProject').onclick=()=>{const name=prompt('Project name',p.name);if(name)update('rename',name);};
  $('#deleteProject').onclick=()=>{if(confirm('Delete this project? Its conversations stay in your library.'))update('delete');};
+}
+async function showBrief(id){
+ const box=$('#projectBrief');
+ async function load(model){paint(await api('project-brief',{project_id:id,model}));}
+ function paint(brief){
+   box.innerHTML='<h3>Project brief · '+esc(brief.status)+'</h3>'+['Goal','Current state','Decisions','Open questions','Next steps'].map(section=>'<h4>'+section+'</h4>'+brief.lines.filter(l=>l.section===section).map(l=>'<article>'+(l.model_suggested?'<small>Local model selection</small>':'')+'<p>'+esc(l.text)+'</p><button class="inline" data-open="'+l.source_id+'">'+esc(l.source_title)+'</button> '+(l.state==='pending'?'<strong>Proposed</strong> <button data-action="accept">Accept</button><button data-action="reject">Reject</button>':'')+' <button data-action="edit">Edit</button><input type="hidden" value="'+l.id+'"><details><summary>Source excerpt</summary><p>'+esc(l.evidence)+'</p></details></article>').join('')).join('')+'<button data-action="review">Mark reviewed</button> <button id="regenerate">Check for changes</button> <button id="localDraft">Draft with local model</button>';
+   box.querySelectorAll('[data-action]').forEach(b=>b.onclick=async()=>{
+     const action=b.dataset.action,article=b.closest('article'),line=article?.querySelector('input').value;
+     const text=action==='edit'?prompt('Edit this line using the linked source',article.querySelector('p').textContent):undefined;
+     if(action==='edit'&&!text)return;
+     try{paint(await api('project-review',{project_id:id,action,line,text}));}catch(e){toast(e.message);}
+   });
+   box.querySelector('#regenerate').onclick=()=>load().catch(e=>toast(e.message));
+   box.querySelector('#localDraft').onclick=async()=>{try{const models=await api('models');if(!models.length){toast('No local Ollama model available');return;}const model=prompt('Choose a local model: '+models.join(', '),models[0]);if(model)await load(model);}catch(e){toast(e.message);}};
+ }
+ try{await load();}catch(e){toast(e.message);}
 }
 function assignment(m){
  const box=document.createElement('div');
  box.innerHTML='<label>Project <select><option value="">Unassigned</option>'+projects.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join('')+'</select></label>';
  const select=box.querySelector('select');select.value=m.project_id||'';
- async function assign(pid){try{await api('projects',{action:'assign',chat:m.id,project_id:pid});await refresh();if(selected?.id===m.id)open(m.id);}catch(e){toast(e.message);}}
+ async function assign(pid){try{await api('projects',{action:'assign',chat:m.id,project_id:pid});await refresh();if(selected?.id===m.id){if(pid)openProject(pid);else open(m.id);}}catch(e){toast(e.message);}}
  select.onchange=()=>assign(select.value);
  if(!m.project_id)api('project-suggestion',{chat:m.id}).then(p=>{if(p){const b=document.createElement('button');b.className='plain';b.textContent='Assign to '+p.name;b.onclick=()=>assign(p.id);box.append(b);}}).catch(e=>toast(e.message));
  $('#modalBody h2').after(box);
