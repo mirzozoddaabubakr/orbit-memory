@@ -24,7 +24,8 @@ def run():
         try:
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(channel="msedge")
-                page=browser.new_page()
+                context=browser.new_context()
+                page=context.new_page()
                 url=f"http://127.0.0.1:{server.server_port}"
                 page.context.add_cookies([dict(name="orbit_session",value=cookie,url=url)])
                 page.goto(url)
@@ -63,4 +64,5 @@ def run():
 
 if __name__=="__main__":
     run()
+
 
