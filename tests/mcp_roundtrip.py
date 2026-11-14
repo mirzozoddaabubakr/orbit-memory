@@ -26,7 +26,7 @@ async def run():
         text = "We chose ellipses. Next, test 轨道. " + fake_key
         async with stdio_client(params) as (reader,writer), ClientSession(reader,writer) as client:
             await client.initialize()
-            assert len((await client.list_tools()).tools)==5
+            assert len((await client.list_tools()).tools)==6
             async def check_recall(client, topic, budget=1500):
                 reply=await client.call_tool("orbit_recall",{"topic":topic,"max_tokens":budget})
                 assert not reply.isError,reply.content
@@ -71,7 +71,19 @@ async def run():
             assert fake_key not in "".join(parts)
             assert "".join(parts)==text.replace(fake_key,"<redacted:OpenAI-key>")+"\n\nYou: What next?\n\nClaude: Try tilt."
             owner=accounts.paired_owner(key,"agent")
-            accounts.store(owner).review(mid,"private")
+            import projects, project_brief
+            store=accounts.store(owner)
+            pid=projects.change(store,dict(action="create",name="Planets"))["project_id"]
+            projects.change(store,dict(action="assign",project_id=pid,chat=mid))
+            for line in project_brief.generate(store,pid)["lines"]:
+                project_brief.review(store,dict(action="accept",project_id=pid,line=line["id"]))
+            assert (await check_recall(client,"planets"))["items"][0]["project_id"]==pid
+            project=await client.call_tool("orbit_read_project",{"project_id":pid})
+            assert not project.isError and all(l["source_id"]==mid for l in project.structuredContent["lines"])
+            store.review(mid,"private")
+            project=await client.call_tool("orbit_read_project",{"project_id":pid})
+            assert not project.isError and not project.structuredContent["lines"]
+            print("PASS project-first MCP recall, cited project read, and private-source removal")
             assert not (await check_recall(client,"planet"))["items"]
             hidden=await client.call_tool("orbit_search_memories",{"query":"轨道"})
             assert hidden.structuredContent["memories"]==[]
