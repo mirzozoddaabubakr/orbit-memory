@@ -66,7 +66,20 @@ export function mountUniverse(host,items,openMemory){
   for(let j=0;j<480;j++){const p=pos(.665+(seed()-.5)*.075,seed()*TAU);ctx.fillStyle='rgba(194,175,154,'+(.08+seed()*.48)+')';ctx.fillRect(p.x,p.y,.65+seed()*.95,.8);}
   const sunR=backdrop?Math.min(W*.115,H*.19):Math.max(23,Math.min(46,42*sc))*zoom;
   points=items.map((item,i)=>{const [r,a,sz]=arrangements[i]||[.26+((i*.223)% .82),i*2.39996,9];return {...pos(r,a),i,radius:Math.max(7,sz*sc)*zoom,kind:forms[i%6]};});
-  const objects=[...points,{x:cx,y:cy,i:-1,radius:sunR,depth:0,kind:'sun'}].sort((a,b)=>a.depth-b.depth);
+  const stars=items.filter(item=>item.isStar);
+  if(stars.length){
+    const centers=new Map(stars.map((star,j)=>[star.id,pos(stars.length===1?0:.67,j*TAU/stars.length)]));
+    points=points.map((point,i)=>{
+      const item=items[i],center=centers.get(item.isStar?item.id:item.project_id);
+      if(!center)return point;
+      if(item.isStar)return {...point,...center,kind:'sun',radius:Math.max(15,25*sc)*zoom};
+      const siblings=items.filter(chat=>chat.project_id===item.project_id),j=siblings.indexOf(item);
+      const r=.12+.045*(j%3),offset=pos(r,j*2.4);
+      ctx.beginPath();ctx.ellipse(center.x,center.y,base*r,base*r*tilt,rot,0,TAU);ctx.stroke();
+      return {...point,x:center.x+offset.x-cx,y:center.y+offset.y-cy,radius:Math.max(5,9*sc)*zoom};
+    });
+  }
+  const objects=[...points,...(stars.length?[]:[{x:cx,y:cy,i:-1,radius:sunR,depth:0,kind:'sun'}])].sort((a,b)=>a.depth-b.depth);
   for(const p of objects){
    const {x,y,radius:r,kind}=p;
    if(kind==='sun'){halo(x,y,r*3.6,[[0,'rgba(255,178,90,.67)'],[.25,'rgba(255,166,68,.58)'],[.34,'rgba(255,139,46,.25)'],[.6,'rgba(239,122,42,.08)'],[1,'rgba(255,130,30,0)']]);}

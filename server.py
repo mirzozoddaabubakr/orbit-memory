@@ -1,4 +1,5 @@
 """Run Orbit on the loopback interface. Uses only Python's standard library."""
+import projects
 import argparse
 import json
 import mimetypes
@@ -73,6 +74,8 @@ class OrbitHandler(BaseHTTPRequestHandler):
                 return self.reply(404,{"error":"Skill not found."})
             return self.reply(200,(ROOT/"skills"/name/"SKILL.md").read_bytes(),"text/markdown",
                               headers={"Content-Disposition":'attachment; filename="SKILL.md"'})
+        if route == "/api/projects":
+            return self.reply(200,projects.listing(self.store))
         if route == "/api/memories":
             return self.reply(200, self.store.list())
         if route == "/api/agent-connections":
@@ -141,6 +144,10 @@ class OrbitHandler(BaseHTTPRequestHandler):
                 if not account:
                     return self.reply(401,{"error":"Sign in to Orbit."})
                 self.store=self.server.accounts.store(account["id"])
+            if self.path == "/api/projects":
+                return self.reply(200,projects.change(self.store,data))
+            if self.path == "/api/project-suggestion":
+                return self.reply(200,projects.suggest(self.store,data.get("chat")))
             if self.path == "/api/recall":
                 from recall import recall
                 return self.reply(200, recall(self.store, data.get("topic"), data.get("max_tokens",1500)))

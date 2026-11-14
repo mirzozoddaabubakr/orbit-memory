@@ -4,9 +4,9 @@ import {readFile} from './imports.js';
 import {skillSection} from './agents.js';
 
 const $=s=>document.querySelector(s), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const names={universe:'Memory universe',library:'Memory library',starred:'Starred',sources:'Sources',agents:'MCP & Skills'};
+const names={projects:'Projects',universe:'Memory universe',library:'Memory library',starred:'Starred',sources:'Sources',agents:'MCP & Skills'};
 let real=[],active='universe',filter='',query='',dispose=null,selected=null,tab='summary',history=[],loaded=false,failure='',sort='recent';
-let account;
+let account, projects=[];
 const providers=()=>[...new Set(real.map(m=>m.provider))].sort((a,b)=>a.localeCompare(b));
 const day=m=>new Date(m.updated).toLocaleDateString(undefined,{month:'short',day:'numeric'});
 const tint=p=>colors[p]||'#a6b4c7';
@@ -49,7 +49,7 @@ function startChecklist(){
 }
 let toastTimer;
 function toast(msg){$('#toast').textContent=msg;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),3500);}
-async function refresh(){try{real=await api('memories');loaded=true;failure='';}catch(e){failure=e.message;}render();}
+async function refresh(){try{[real,projects]=await Promise.all([api('memories'),api('projects')]);loaded=true;failure='';}catch(e){failure=e.message;}render();}
 function navButton(id,label,count){return '<button class="nav-button '+(active===id&&!filter?'chosen':'')+'" data-nav="'+id+'">'+icon(id==='sources'?'link':id==='agents'?'spark':id==='starred'?'star':id)+'<span>'+esc(label)+'</span>'+(count===undefined?'':'<small>'+count+'</small>')+'</button>';}
 function navigate(id,p=''){active=id;filter=p;query='';$('#search').value='';location.hash=p?'source/'+encodeURIComponent(p):id;document.body.classList.remove('show-menu');render();}
 function fromHash(){const hash=decodeURIComponent(location.hash.slice(1));filter=hash.startsWith('source/')?hash.slice(7):'';active=filter?'library':Object.hasOwn(names,hash)?hash:'universe';render();}
@@ -68,13 +68,14 @@ function render(){
  }
  const list=visible();
  $('.source-label').hidden=!pnames.length;
- const firstMemory=loaded&&!failure&&!items.length&&!query&&['universe','library'].includes(active);
+ const firstMemory=loaded&&!failure&&!items.length&&!projects.length&&!query&&['universe','library'].includes(active);
  $('#add').hidden=firstMemory;
- $('#nav').innerHTML=navButton('universe',names.universe)+navButton('library',names.library,items.length)+navButton('starred','Starred')+navButton('agents',names.agents)+navButton('sources','Sources');
+ $('#nav').innerHTML=navButton('universe',names.universe)+navButton('library',names.library,items.length)+navButton('projects','Projects')+navButton('starred','Starred')+navButton('agents',names.agents)+navButton('sources','Sources');
  $('#sourceNav').innerHTML=pnames.map(p=>'<button class="source-nav '+(filter===p?'selected':'')+'" data-source="'+esc(p)+'"><i style="background:'+tint(p)+'"></i>'+esc(p)+'</button>').join('');
  $('#crumb').textContent=filter||names[active];
  if(failure){$('#main').innerHTML='<h1>Library unavailable</h1><p>Open Orbit on this computer, then retry.</p><button id="retry" class="plain">Retry</button>';$('#retry').onclick=refresh;return;}
  if(!loaded){$('#main').innerHTML='<p>Opening your library…</p>';return;}
+ if(active==='projects'&&!query){projectPage();return;}
  if(['sources','agents'].includes(active)&&!query){sources();return;}
  const home=active==='universe'&&!query;
  const title=query?'Search results':filter?filter+' memories':names[active];
@@ -89,8 +90,29 @@ function render(){
  (home?scene()+'<div class="scene-caption"><div class="map-legend">'+[...new Set(items.map(m=>m.provider))].map(p=>'<span><i style="background:'+tint(p)+'"></i>'+esc(p)+'</span>').join('')+'</div><span>'+items.length+' memories in orbit</span></div>':'')+
  '<section class="memory-section"><div class="section-head"><div><h2>'+(home?'Recent memories':query?'Matching memories':'Memories')+'</h2><span class="count">'+list.length+'</span></div>'+(home?'<button class="text-btn" data-nav="library">View library '+icon('arrow',15)+'</button>':'<select id="sort" aria-label="Sort memories"><option value="recent">Most recent</option><option value="title">Title A–Z</option></select>')+'</div>'+
  (list.length?'<div class="cards">'+(home?list.slice(0,3):list).map(card).join('')+'</div>':empty())+'</section>';
- if(home)dispose=mountUniverse($('.scene'),items,open);
+ if(home)dispose=mountUniverse($('.scene'),[...projects.map(p=>({id:p.id,title:p.name,isStar:true})),...items],id=>projects.some(p=>p.id===id)?openProject(id):open(id));
  if($('#sort')){$('#sort').value=sort;$('#sort').onchange=e=>{sort=e.target.value;render();};}
+}
+function projectPage(){
+ $('#main').innerHTML='<h1>Projects</h1><button class="plain" id="newProject">Create project</button><div class="cards">'+projects.map(p=>'<button class="card" data-project="'+p.id+'">'+esc(p.name)+'</button>').join('')+'</div>';
+ $('#newProject').onclick=async()=>{const name=prompt('Project name');if(!name)return;try{await api('projects',{action:'create',name});await refresh();}catch(e){toast(e.message);}};
+ $('#main').querySelectorAll('[data-project]').forEach(b=>b.onclick=()=>openProject(b.dataset.project));
+}
+function openProject(id){
+ const p=projects.find(p=>p.id===id);if(!p)return;
+ modal(closeBtn()+'<h2>'+esc(p.name)+'</h2><button class="plain" id="renameProject">Rename</button><button class="plain" id="deleteProject">Delete project</button><section id="projectBrief"></section><h3>Conversations</h3>'+real.filter(m=>m.project_id===id).map(m=>'<button class="plain" data-open="'+m.id+'">'+esc(m.title)+'</button>').join(''));
+ async function update(action,name){try{await api('projects',{action,project_id:id,name});close();await refresh();}catch(e){toast(e.message);}}
+ $('#renameProject').onclick=()=>{const name=prompt('Project name',p.name);if(name)update('rename',name);};
+ $('#deleteProject').onclick=()=>{if(confirm('Delete this project? Its conversations stay in your library.'))update('delete');};
+}
+function assignment(m){
+ const box=document.createElement('div');
+ box.innerHTML='<label>Project <select><option value="">Unassigned</option>'+projects.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join('')+'</select></label>';
+ const select=box.querySelector('select');select.value=m.project_id||'';
+ async function assign(pid){try{await api('projects',{action:'assign',chat:m.id,project_id:pid});await refresh();if(selected?.id===m.id)open(m.id);}catch(e){toast(e.message);}}
+ select.onchange=()=>assign(select.value);
+ if(!m.project_id)api('project-suggestion',{chat:m.id}).then(p=>{if(p){const b=document.createElement('button');b.className='plain';b.textContent='Assign to '+p.name;b.onclick=()=>assign(p.id);box.append(b);}}).catch(e=>toast(e.message));
+ $('#modalBody h2').after(box);
 }
 function sources(){
  const main=$('#main');
@@ -150,6 +172,7 @@ function detail(){
  const m=selected;if(!m)return;
  if(m.private && tab==='handoff')tab='summary';
  modal(closeBtn()+'<div class="detail-meta provider" style="--tint:'+tint(m.provider)+'">'+providerMark(m.provider)+esc(m.provider)+'</div><h2>'+esc(m.title)+'</h2><p class="detail-date">'+day(m)+' · '+m.transcript.trim().split(/\s+/).length+' words</p><div class="tabs">'+[['summary','Summary'],['transcript','Conversation'],['handoff','Handoff']].filter(([key])=>!m.private||key!=='handoff').map(([k,l])=>'<button class="'+(tab===k?'active':'')+'" data-tab="'+k+'">'+l+'</button>').join('')+'</div><div class="reader">'+(tab==='summary'?summaryView(m):tab==='handoff'?'<pre id="handoffPreview"></pre>':'<pre>'+esc(m.transcript)+'</pre>'+history.map((t,i)=>'<details><summary>Earlier captured version '+(i+1)+'</summary><pre>'+esc(t)+'</pre></details>').join(''))+'</div><footer class="dialog-actions"><button class="primary" id="copy">'+icon('copy',15)+'Copy handoff</button><button class="plain" id="download">Download</button>'+'<button class="icon delete" id="delete" aria-label="Delete memory">'+icon('trash')+'</button>'+'</footer>');
+ assignment(m);
  const notice=document.createElement('section');
  const masks=[...new Set(JSON.stringify([m,history]).match(/<redacted:[^>]+>/g)||[])];
  const warning=masks.length?'<strong>Secrets found</strong><p>'+ (m.kept?'Original kept locally. ':m.reviewed?'Redacted. ':'')+masks.map(esc).join(' · ')+'</p><button class="plain" data-review="redact">Redact</button><button class="plain" data-review="keep">Keep anyway</button>':'';

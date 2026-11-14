@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 import sqlite3
+import projects
 from recall import initialize as initialize_recall
 from redaction import mask, safe_object
 from contextlib import contextmanager, closing
@@ -71,12 +72,14 @@ class MemoryStore:
                 for row in db.execute("SELECT rowid,transcript FROM snapshots").fetchall():
                     db.execute("UPDATE snapshots SET transcript=? WHERE rowid=?",(mask(row[1]),row[0]))
                 db.execute("INSERT INTO settings VALUES ('masked_v1','1')")
+            projects.initialize(db)
             initialize_recall(db)
             db.execute("INSERT OR IGNORE INTO settings VALUES ('pair',?)", (secrets.token_urlsafe(32),))
 
     @contextmanager
     def connect(self):
         with closing(sqlite3.connect(self.path, timeout=15)) as db:
+            db.execute("PRAGMA foreign_keys=ON")
             db.row_factory = sqlite3.Row
             db.execute("PRAGMA secure_delete=ON")
             with db:
@@ -100,7 +103,7 @@ class MemoryStore:
 
     def list(self):
         with self.connect() as db:
-            rows = db.execute("SELECT m.*,coalesce(p.private,0) AS private,p.original IS NOT NULL AS kept,coalesce(p.reviewed,0) AS reviewed FROM memories m LEFT JOIN privacy p USING(id) ORDER BY updated DESC").fetchall()
+            rows = db.execute("SELECT m.*,(SELECT project FROM memberships WHERE chat=m.id) AS project_id,coalesce(p.private,0) AS private,p.original IS NOT NULL AS kept,coalesce(p.reviewed,0) AS reviewed FROM memories m LEFT JOIN privacy p USING(id) ORDER BY updated DESC").fetchall()
         return [{**dict(r), "summary": json.loads(r["summary"]), "starred": bool(r["starred"])} for r in rows]
 
     def save(self, data, captured=False, *, conversation_id=None, turn_id=None):
