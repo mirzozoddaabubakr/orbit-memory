@@ -2,7 +2,8 @@
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
-from mcp.types import ToolAnnotations
+from recall import recall
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import Field
 
 from memory import library_directory
@@ -62,6 +63,13 @@ def orbit_read_memory(memory_id: Annotated[str,Field(pattern=r"^[a-f0-9]{32}$")]
     """Read the project handoff: source, current brief, and saved transcript. Follow next_offset for all text.
     Version 0 is current; versions 1 through earlier_versions are older transcript snapshots."""
     return accounts.agent_store(key).read_page(memory_id, version, offset, limit)
+
+
+@server.tool(annotations=read)
+def orbit_recall(topic: str, max_tokens: int = 1500) -> CallToolResult:
+    """Recall ranked historical briefs. Use a returned memory_id with orbit_read_memory."""
+    result = recall(accounts.agent_store(key), topic, max_tokens)
+    return CallToolResult(content=[TextContent(type="text", text=result["text"])], structuredContent=result)
 
 
 if __name__ == "__main__":

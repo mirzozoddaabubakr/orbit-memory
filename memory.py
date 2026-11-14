@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 import sqlite3
+from recall import initialize as initialize_recall
 from redaction import mask, safe_object
 from contextlib import contextmanager, closing
 from pathlib import Path
@@ -70,6 +71,7 @@ class MemoryStore:
                 for row in db.execute("SELECT rowid,transcript FROM snapshots").fetchall():
                     db.execute("UPDATE snapshots SET transcript=? WHERE rowid=?",(mask(row[1]),row[0]))
                 db.execute("INSERT INTO settings VALUES ('masked_v1','1')")
+            initialize_recall(db)
             db.execute("INSERT OR IGNORE INTO settings VALUES ('pair',?)", (secrets.token_urlsafe(32),))
 
     @contextmanager
